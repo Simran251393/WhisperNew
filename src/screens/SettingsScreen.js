@@ -1,19 +1,24 @@
-// src/screens/SettingsScreen.js
-import React, { useState, useCallback, useMemo } from 'react';
+// src/screens/SettingsScreen.js - Optimized Version
+import React, { useState, useCallback, useMemo, useRef } from 'react';
 import {
   View,
   Text,
-  FlatList,
+  ScrollView,
   TouchableOpacity,
   StyleSheet,
   StatusBar,
   Switch,
   Alert,
-  Haptic
+  Platform,
+  Animated,
+  Dimensions,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useApp } from '../context/AppContext';
 import { COLORS, SIZES, SHADOWS } from '../constants/theme';
+
+const { width, height } = Dimensions.get('window');
+const HEADER_HEIGHT = 120;
 
 const SettingsScreen = ({ navigation }) => {
   const { locationRadius, setLocationRadius } = useApp();
@@ -21,24 +26,44 @@ const SettingsScreen = ({ navigation }) => {
   const [darkMode, setDarkMode] = useState(false);
   const [autoLocation, setAutoLocation] = useState(true);
   const [loading, setLoading] = useState(false);
+  
+  const fadeAnimation = useRef(new Animated.Value(0)).current;
+  const slideAnimation = useRef(new Animated.Value(50)).current;
+
+  React.useEffect(() => {
+    Animated.parallel([
+      Animated.timing(fadeAnimation, {
+        toValue: 1,
+        duration: 400,
+        useNativeDriver: true,
+      }),
+      Animated.timing(slideAnimation, {
+        toValue: 0,
+        duration: 400,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, []);
 
   const radiusOptions = useMemo(() => [
-    { value: 500, label: '500m', description: 'Very close' },
-    { value: 1000, label: '1km', description: 'Walking distance' },
-    { value: 2000, label: '2km', description: 'Neighborhood' },
-    { value: 5000, label: '5km', description: 'City area' }
+    { value: 500, label: '500m', description: 'Very close', emoji: '🏠' },
+    { value: 1000, label: '1km', description: 'Walking distance', emoji: '🚶' },
+    { value: 2000, label: '2km', description: 'Neighborhood', emoji: '🏘️' },
+    { value: 5000, label: '5km', description: 'City area', emoji: '🏙️' }
   ], []);
 
   const settingSections = useMemo(() => [
     {
       id: 'location',
-      title: 'Location',
+      title: 'Location & Privacy',
+      emoji: '📍',
       items: [
         {
           id: 'auto-location',
           type: 'switch',
           title: 'Auto-detect Location',
           subtitle: 'Automatically use your current location',
+          emoji: '🎯',
           value: autoLocation,
           onValueChange: setAutoLocation,
         },
@@ -46,27 +71,33 @@ const SettingsScreen = ({ navigation }) => {
           id: 'radius',
           type: 'custom',
           title: 'Search Radius',
-          subtitle: 'Choose how far to search for whispers around you',
+          subtitle: 'Choose how far to search for whispers',
+          emoji: '📏',
         }
       ]
     },
     {
       id: 'notifications',
       title: 'Notifications',
+      emoji: '🔔',
       items: [
         {
           id: 'push-notifications',
           type: 'switch',
           title: 'Push Notifications',
           subtitle: 'Get notified about nearby whispers',
+          emoji: '📱',
           value: notifications,
           onValueChange: setNotifications,
         },
         {
-          id: 'notification-radius',
-          type: 'text',
-          title: 'Notification Radius',
-          subtitle: 'Same as search radius',
+          id: 'notification-sounds',
+          type: 'switch',
+          title: 'Notification Sounds',
+          subtitle: 'Play sound with notifications',
+          emoji: '🔊',
+          value: true,
+          onValueChange: () => {},
           disabled: !notifications,
         }
       ]
@@ -74,12 +105,14 @@ const SettingsScreen = ({ navigation }) => {
     {
       id: 'appearance',
       title: 'Appearance',
+      emoji: '🎨',
       items: [
         {
           id: 'dark-mode',
           type: 'switch',
           title: 'Dark Mode',
-          subtitle: 'Coming soon',
+          subtitle: 'Coming soon in future updates',
+          emoji: '🌙',
           value: darkMode,
           onValueChange: setDarkMode,
           disabled: true,
@@ -89,42 +122,50 @@ const SettingsScreen = ({ navigation }) => {
     {
       id: 'privacy',
       title: 'Privacy & Safety',
+      emoji: '🔒',
       items: [
         {
           id: 'content-filtering',
-          type: 'switch',
+          type: 'badge',
           title: 'Content Filtering',
           subtitle: 'Automatically filter inappropriate content',
-          value: true,
-          disabled: true,
+          emoji: '🛡️',
+          badge: 'Always On',
+          color: '#4CAF50',
         },
         {
           id: 'anonymous-mode',
           type: 'badge',
           title: 'Anonymous Mode',
-          subtitle: 'Always enabled for your privacy',
-          badge: 'Enabled',
-          disabled: true,
+          subtitle: 'Your identity is always protected',
+          emoji: '👤',
+          badge: 'Protected',
+          color: COLORS.primary,
         }
       ]
     },
     {
       id: 'data',
       title: 'Data Management',
+      emoji: '💾',
       items: [
         {
           id: 'export-data',
           type: 'action',
           title: 'Export My Data',
           subtitle: 'Download all your whispers',
+          emoji: '📁',
           onPress: handleExportData,
+          color: '#2196F3',
         },
         {
           id: 'clear-data',
           type: 'danger',
           title: 'Clear All Data',
           subtitle: 'Delete all whispers and reset app',
+          emoji: '🗑️',
           onPress: handleClearData,
+          color: '#FF5252',
         }
       ]
     }
@@ -134,8 +175,10 @@ const SettingsScreen = ({ navigation }) => {
     try {
       await setLocationRadius(value);
       // Add haptic feedback if available
-      if (Haptic && Haptic.impactAsync) {
-        Haptic.impactAsync(Haptic.ImpactFeedbackStyle.Light);
+      if (Platform.OS === 'ios') {
+        import('expo-haptics').then(({ impactAsync, ImpactFeedbackStyle }) => {
+          impactAsync(ImpactFeedbackStyle.Light);
+        });
       }
     } catch (error) {
       Alert.alert('Error', 'Failed to update radius setting.');
@@ -144,16 +187,19 @@ const SettingsScreen = ({ navigation }) => {
 
   function handleExportData() {
     Alert.alert(
-      'Export Data',
-      'This feature will be available soon. You will be able to download all your whispers as a JSON file.',
-      [{ text: 'OK' }]
+      '📁 Export Data',
+      'This feature will be available soon. You will be able to download all your whispers as a secure JSON file.',
+      [
+        { text: 'Notify Me', onPress: () => {} },
+        { text: 'OK' }
+      ]
     );
   }
 
   function handleClearData() {
     Alert.alert(
-      'Clear All Data',
-      'This will delete all your whispers and reset the app. This action cannot be undone.',
+      '⚠️ Clear All Data',
+      'This will permanently delete all your whispers and reset the app. This action cannot be undone.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -162,11 +208,10 @@ const SettingsScreen = ({ navigation }) => {
           onPress: async () => {
             setLoading(true);
             try {
-              // Simulate clearing data
               await new Promise(resolve => setTimeout(resolve, 1000));
-              Alert.alert('Success', 'All data has been cleared.');
+              Alert.alert('✅ Success', 'All data has been cleared successfully.');
             } catch (error) {
-              Alert.alert('Error', 'Failed to clear data. Please try again.');
+              Alert.alert('❌ Error', 'Failed to clear data. Please try again.');
             } finally {
               setLoading(false);
             }
@@ -176,7 +221,7 @@ const SettingsScreen = ({ navigation }) => {
     );
   }
 
-  const SettingItem = useCallback(({ item }) => {
+  const SettingItem = useCallback(({ item, index = 0 }) => {
     const renderRightComponent = () => {
       switch (item.type) {
         case 'switch':
@@ -187,18 +232,26 @@ const SettingsScreen = ({ navigation }) => {
               disabled={item.disabled}
               trackColor={{ 
                 false: COLORS.lightGray, 
-                true: COLORS.primaryLight 
+                true: COLORS.primaryLight + '80'
               }}
               thumbColor={item.value ? COLORS.primary : COLORS.gray}
             />
           );
         case 'badge':
           return (
-            <Text style={styles.enabledBadge}>{item.badge}</Text>
+            <View style={[styles.statusBadge, { backgroundColor: (item.color || COLORS.primary) + '15' }]}>
+              <Text style={[styles.statusBadgeText, { color: item.color || COLORS.primary }]}>
+                {item.badge}
+              </Text>
+            </View>
           );
         case 'action':
           return (
-            <Text style={styles.chevron}>›</Text>
+            <View style={[styles.actionButton, { backgroundColor: (item.color || COLORS.primary) + '15' }]}>
+              <Text style={[styles.actionIcon, { color: item.color || COLORS.primary }]}>
+                ›
+              </Text>
+            </View>
           );
         default:
           return null;
@@ -207,48 +260,93 @@ const SettingsScreen = ({ navigation }) => {
 
     if (item.type === 'danger') {
       return (
-        <TouchableOpacity
-          style={styles.dangerButton}
-          onPress={item.onPress}
-          disabled={loading}
-          activeOpacity={0.7}
+        <Animated.View 
+          style={[
+            styles.settingCard,
+            styles.dangerCard,
+            {
+              opacity: fadeAnimation,
+              transform: [{ translateY: slideAnimation }]
+            }
+          ]}
         >
-          <Text style={styles.dangerButtonText}>{item.title}</Text>
-          <Text style={styles.dangerButtonSubtext}>{item.subtitle}</Text>
-        </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.settingItemContent}
+            onPress={item.onPress}
+            disabled={loading}
+            activeOpacity={0.7}
+          >
+            <View style={styles.settingItemLeft}>
+              <View style={[styles.settingItemIcon, { backgroundColor: '#FF5252' + '15' }]}>
+                <Text style={styles.settingItemEmoji}>{item.emoji}</Text>
+              </View>
+              <View style={styles.settingItemText}>
+                <Text style={[styles.settingItemTitle, { color: '#FF5252' }]}>
+                  {item.title}
+                </Text>
+                <Text style={styles.settingItemSubtitle}>
+                  {item.subtitle}
+                </Text>
+              </View>
+            </View>
+            <View style={[styles.actionButton, { backgroundColor: '#FF5252' + '15' }]}>
+              <Text style={[styles.actionIcon, { color: '#FF5252' }]}>›</Text>
+            </View>
+          </TouchableOpacity>
+        </Animated.View>
       );
     }
 
     return (
-      <TouchableOpacity
+      <Animated.View 
         style={[
-          styles.settingItem, 
-          item.disabled && styles.disabledSettingItem
+          styles.settingCard,
+          item.disabled && styles.disabledCard,
+          {
+            opacity: fadeAnimation,
+            transform: [{ 
+              translateY: slideAnimation.interpolate({
+                inputRange: [0, 50],
+                outputRange: [0, 50 + (index * 10)],
+                extrapolate: 'clamp',
+              })
+            }]
+          }
         ]}
-        onPress={item.onPress}
-        disabled={item.disabled || !item.onPress}
-        activeOpacity={item.onPress ? 0.7 : 1}
       >
-        <View style={styles.settingItemLeft}>
-          <Text style={[
-            styles.settingItemTitle, 
-            item.disabled && styles.disabledText
-          ]}>
-            {item.title}
-          </Text>
-          {item.subtitle && (
-            <Text style={[
-              styles.settingItemSubtitle, 
-              item.disabled && styles.disabledText
+        <TouchableOpacity
+          style={styles.settingItemContent}
+          onPress={item.onPress}
+          disabled={item.disabled || !item.onPress}
+          activeOpacity={item.onPress ? 0.7 : 1}
+        >
+          <View style={styles.settingItemLeft}>
+            <View style={[
+              styles.settingItemIcon,
+              { backgroundColor: (item.color || COLORS.primary) + '15' }
             ]}>
-              {item.subtitle}
-            </Text>
-          )}
-        </View>
-        {renderRightComponent()}
-      </TouchableOpacity>
+              <Text style={styles.settingItemEmoji}>{item.emoji}</Text>
+            </View>
+            <View style={styles.settingItemText}>
+              <Text style={[
+                styles.settingItemTitle,
+                item.disabled && styles.disabledText
+              ]}>
+                {item.title}
+              </Text>
+              <Text style={[
+                styles.settingItemSubtitle,
+                item.disabled && styles.disabledText
+              ]}>
+                {item.subtitle}
+              </Text>
+            </View>
+          </View>
+          {renderRightComponent()}
+        </TouchableOpacity>
+      </Animated.View>
     );
-  }, [loading]);
+  }, [loading, fadeAnimation, slideAnimation]);
 
   const RadioOption = useCallback(({ option, selected, onPress }) => (
     <TouchableOpacity
@@ -256,111 +354,216 @@ const SettingsScreen = ({ navigation }) => {
       onPress={onPress}
       activeOpacity={0.8}
     >
-      <View style={styles.radioOptionContent}>
-        <View style={[
-          styles.radioButton,
-          selected && { borderColor: 'white' }
-        ]}>
-          {selected && <View style={styles.radioButtonSelected} />}
+      <LinearGradient
+        colors={selected ? [COLORS.primaryLight, COLORS.primary] : ['transparent', 'transparent']}
+        style={styles.radioOptionGradient}
+      >
+        <View style={styles.radioOptionContent}>
+          <View style={styles.radioOptionLeft}>
+            <Text style={styles.radioOptionEmoji}>{option.emoji}</Text>
+            <View style={styles.radioOptionTextContainer}>
+              <Text style={[
+                styles.radioOptionLabel,
+                selected && styles.selectedRadioLabel
+              ]}>
+                {option.label}
+              </Text>
+              <Text style={[
+                styles.radioOptionDescription,
+                selected && styles.selectedRadioDescription
+              ]}>
+                {option.description}
+              </Text>
+            </View>
+          </View>
+          <View style={[
+            styles.radioIndicator,
+            selected && styles.selectedRadioIndicator
+          ]}>
+            {selected && <Text style={styles.checkmark}>✓</Text>}
+          </View>
         </View>
-        <View style={styles.radioOptionText}>
-          <Text style={[styles.radioOptionLabel, selected && styles.selectedRadioLabel]}>
-            {option.label}
-          </Text>
-          {option.description && (
-            <Text style={[styles.radioOptionDescription, selected && styles.selectedRadioDescription]}>
-              {option.description}
-            </Text>
-          )}
-        </View>
-      </View>
-      {selected && <Text style={styles.checkmark}>✓</Text>}
+      </LinearGradient>
     </TouchableOpacity>
   ), []);
 
   const renderRadiusSection = useCallback(() => (
-    <View style={styles.radiusSection}>
-      <Text style={styles.radiusTitle}>Search Radius</Text>
-      <Text style={styles.radiusSubtitle}>
-        Choose how far to search for whispers around you
-      </Text>
-      
-      <View style={styles.radiusOptions}>
-        {radiusOptions.map(option => (
-          <RadioOption
-            key={option.value}
-            option={option}
-            selected={locationRadius === option.value}
-            onPress={() => handleRadiusChange(option.value)}
-          />
-        ))}
+    <Animated.View 
+      style={[
+        styles.settingCard,
+        {
+          opacity: fadeAnimation,
+          transform: [{ translateY: slideAnimation }]
+        }
+      ]}
+    >
+      <View style={styles.radiusSection}>
+        <View style={styles.radiusSectionHeader}>
+          <View style={[styles.settingItemIcon, { backgroundColor: COLORS.primary + '15' }]}>
+            <Text style={styles.settingItemEmoji}>📏</Text>
+          </View>
+          <View style={styles.settingItemText}>
+            <Text style={styles.settingItemTitle}>Search Radius</Text>
+            <Text style={styles.settingItemSubtitle}>
+              Choose how far to search for whispers
+            </Text>
+          </View>
+        </View>
+        
+        <View style={styles.radiusOptions}>
+          {radiusOptions.map(option => (
+            <RadioOption
+              key={option.value}
+              option={option}
+              selected={locationRadius === option.value}
+              onPress={() => handleRadiusChange(option.value)}
+            />
+          ))}
+        </View>
       </View>
+    </Animated.View>
+  ), [locationRadius, radiusOptions, handleRadiusChange, fadeAnimation, slideAnimation]);
+
+  const SectionHeader = useCallback(({ section, index = 0 }) => (
+    <Animated.View 
+      style={[
+        styles.sectionHeader,
+        {
+          opacity: fadeAnimation,
+          transform: [{ 
+            translateY: slideAnimation.interpolate({
+              inputRange: [0, 50],
+              outputRange: [0, 20 + (index * 5)],
+              extrapolate: 'clamp',
+            })
+          }]
+        }
+      ]}
+    >
+      <View style={styles.sectionHeaderContent}>
+        <View style={[styles.sectionIconContainer, { backgroundColor: COLORS.primary + '15' }]}>
+          <Text style={styles.sectionHeaderEmoji}>{section.emoji}</Text>
+        </View>
+        <Text style={styles.sectionTitle}>{section.title}</Text>
+      </View>
+      <View style={styles.sectionHeaderLine} />
+    </Animated.View>
+  ), [fadeAnimation, slideAnimation]);
+
+  const Header = useCallback(() => (
+    <View style={styles.header}>
+      <LinearGradient
+        colors={[COLORS.primary, COLORS.primaryLight]}
+        style={StyleSheet.absoluteFill}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+      />
+      
+      <Animated.View 
+        style={[
+          styles.headerContent,
+          {
+            opacity: fadeAnimation,
+            transform: [{ translateY: slideAnimation }]
+          }
+        ]}
+      >
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={() => navigation.goBack()}
+          activeOpacity={0.8}
+        >
+          <Text style={styles.backButtonText}>‹</Text>
+        </TouchableOpacity>
+        
+        <View style={styles.headerTitleContainer}>
+          <Text style={styles.headerTitle}>Settings</Text>
+          <Text style={styles.headerSubtitle}>Customize your experience</Text>
+        </View>
+        
+        <View style={styles.headerSpacer} />
+      </Animated.View>
     </View>
-  ), [locationRadius, radiusOptions, handleRadiusChange]);
+  ), [navigation, fadeAnimation, slideAnimation]);
 
-  const renderSectionHeader = useCallback(({ section }) => (
-    <Text style={styles.sectionTitle}>{section.title}</Text>
-  ), []);
-
-  const renderSectionItem = useCallback(({ item, section }) => {
-    if (item.id === 'radius' && section.id === 'location') {
-      return renderRadiusSection();
-    }
-    return <SettingItem item={item} />;
-  }, [SettingItem, renderRadiusSection]);
-
-  const sections = settingSections.map(section => ({
-    ...section,
-    data: section.items
-  }));
+  const AppInfo = useCallback(() => (
+    <Animated.View 
+      style={[
+        styles.appInfoCard,
+        {
+          opacity: fadeAnimation,
+          transform: [{ translateY: slideAnimation }]
+        }
+      ]}
+    >
+      <LinearGradient
+        colors={[COLORS.primaryLight + '10', COLORS.primary + '10']}
+        style={styles.appInfoGradient}
+      >
+        <View style={styles.appInfoHeader}>
+          <View style={styles.appIconContainer}>
+            <Text style={styles.appIcon}>💬</Text>
+          </View>
+          <View style={styles.appInfoTextContainer}>
+            <Text style={styles.appInfoTitle}>Whisper Walls</Text>
+            <Text style={styles.appInfoVersion}>Version 1.0.0</Text>
+          </View>
+        </View>
+        
+        <Text style={styles.appInfoDescription}>
+          Share your thoughts anonymously with people around you. 
+          Connect with your community while maintaining complete privacy.
+        </Text>
+        
+        <View style={styles.appInfoFeatures}>
+          <View style={styles.appInfoFeature}>
+            <Text style={styles.featureEmoji}>🔒</Text>
+            <Text style={styles.featureText}>100% Anonymous</Text>
+          </View>
+          <View style={styles.appInfoFeature}>
+            <Text style={styles.featureEmoji}>🌍</Text>
+            <Text style={styles.featureText}>Location-based</Text>
+          </View>
+          <View style={styles.appInfoFeature}>
+            <Text style={styles.featureEmoji}>💙</Text>
+            <Text style={styles.featureText}>Community-driven</Text>
+          </View>
+        </View>
+      </LinearGradient>
+    </Animated.View>
+  ), [fadeAnimation, slideAnimation]);
 
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor={COLORS.primary} />
       
-      {/* Header */}
-      <LinearGradient
-        colors={[COLORS.primaryLight, COLORS.primary]}
-        style={styles.header}
-      >
-        <View style={styles.headerContent}>
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={() => navigation.goBack()}
-            activeOpacity={0.8}
-          >
-            <Text style={styles.backButtonText}>‹</Text>
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Settings</Text>
-          <View style={styles.headerSpacer} />
-        </View>
-      </LinearGradient>
+      <Header />
 
-      <FlatList
-        data={sections}
-        renderItem={({ item: section }) => (
-          <View style={styles.section}>
-            {renderSectionHeader({ section })}
-            {section.data.map((item, index) => (
-              <View key={item.id}>
-                {renderSectionItem({ item, section })}
-              </View>
-            ))}
-          </View>
-        )}
-        keyExtractor={(section) => section.id}
+      <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.content}
-        ListFooterComponent={() => (
-          <View style={styles.appInfo}>
-            <Text style={styles.appInfoTitle}>Whisper Walls</Text>
-            <Text style={styles.appInfoVersion}>Version 1.0.0</Text>
-            <Text style={styles.appInfoDescription}>
-              Share your thoughts anonymously with people around you
-            </Text>
+      >
+        {settingSections.map((section, sectionIndex) => (
+          <View key={section.id}>
+            <SectionHeader section={section} index={sectionIndex} />
+            
+            {section.items.map((item, itemIndex) => {
+              if (item.id === 'radius' && section.id === 'location') {
+                return renderRadiusSection();
+              }
+              return (
+                <SettingItem 
+                  key={item.id} 
+                  item={item} 
+                  index={sectionIndex * 2 + itemIndex}
+                />
+              );
+            })}
           </View>
-        )}
-      />
+        ))}
+
+        <AppInfo />
+      </ScrollView>
     </View>
   );
 };
@@ -371,138 +574,215 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.background,
   },
   header: {
+    height: HEADER_HEIGHT,
     paddingTop: 50,
     paddingBottom: SIZES.medium,
     paddingHorizontal: SIZES.large,
+    elevation: 8,
+    shadowColor: COLORS.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
   },
   headerContent: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
   backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255, 255, 255, 0.25)',
     justifyContent: 'center',
     alignItems: 'center',
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
   },
   backButtonText: {
     color: 'white',
-    fontSize: 24,
-    fontWeight: 'bold',
+    fontSize: 28,
+    fontWeight: '300',
+  },
+  headerTitleContainer: {
+    alignItems: 'center',
   },
   headerTitle: {
     color: 'white',
     fontSize: SIZES.h3,
-    fontWeight: '600',
+    fontWeight: 'bold',
+    marginBottom: 2,
+  },
+  headerSubtitle: {
+    color: 'rgba(255, 255, 255, 0.8)',
+    fontSize: SIZES.caption,
+    fontWeight: '500',
   },
   headerSpacer: {
-    width: 40,
+    width: 44,
   },
   content: {
     paddingHorizontal: SIZES.large,
+    paddingVertical: SIZES.large,
+    paddingBottom: SIZES.xlarge * 2,
   },
-  section: {
-    marginTop: SIZES.large,
-  },
-  sectionTitle: {
-    fontSize: SIZES.h5,
-    fontWeight: '600',
-    color: COLORS.text,
+  sectionHeader: {
+    marginTop: SIZES.xlarge,
     marginBottom: SIZES.medium,
   },
-  settingItem: {
+  sectionHeaderContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: SIZES.medium,
+  },
+  sectionIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: SIZES.medium,
+  },
+  sectionHeaderEmoji: {
+    fontSize: 18,
+  },
+  sectionTitle: {
+    fontSize: SIZES.h4,
+    fontWeight: 'bold',
+    color: COLORS.text,
+  },
+  sectionHeaderLine: {
+    height: 3,
+    backgroundColor: COLORS.primary + '30',
+    borderRadius: 1.5,
+    width: 60,
+  },
+  settingCard: {
     backgroundColor: 'white',
-    borderRadius: SIZES.radiusMedium,
-    padding: SIZES.medium,
+    borderRadius: SIZES.radiusLarge,
+    marginBottom: SIZES.medium,
+    ...SHADOWS.medium,
+  },
+  disabledCard: {
+    backgroundColor: '#f8f8f8',
+    opacity: 0.7,
+  },
+  dangerCard: {
+    borderLeftWidth: 4,
+    borderLeftColor: '#FF5252',
+  },
+  settingItemContent: {
+    padding: SIZES.large,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: SIZES.small,
-    ...SHADOWS.small,
-  },
-  disabledSettingItem: {
-    backgroundColor: '#f8f8f8',
   },
   settingItemLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  settingItemIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: SIZES.large,
+  },
+  settingItemEmoji: {
+    fontSize: 20,
+  },
+  settingItemText: {
     flex: 1,
   },
   settingItemTitle: {
     fontSize: SIZES.body,
-    fontWeight: '500',
-    color: COLORS.text,
-    marginBottom: 2,
-  },
-  settingItemSubtitle: {
-    fontSize: SIZES.small,
-    color: COLORS.textMuted,
-  },
-  disabledText: {
-    color: COLORS.textMuted,
-  },
-  radiusSection: {
-    backgroundColor: 'white',
-    borderRadius: SIZES.radiusMedium,
-    padding: SIZES.medium,
-    marginBottom: SIZES.small,
-    ...SHADOWS.small,
-  },
-  radiusTitle: {
-    fontSize: SIZES.body,
-    fontWeight: '500',
+    fontWeight: '600',
     color: COLORS.text,
     marginBottom: SIZES.base,
   },
-  radiusSubtitle: {
-    fontSize: SIZES.small,
+  settingItemSubtitle: {
+    fontSize: SIZES.caption,
     color: COLORS.textMuted,
-    marginBottom: SIZES.medium,
+    lineHeight: 18,
+  },
+  disabledText: {
+    color: COLORS.textMuted,
+    opacity: 0.6,
+  },
+  statusBadge: {
+    paddingHorizontal: SIZES.medium,
+    paddingVertical: SIZES.small,
+    borderRadius: SIZES.radiusLarge,
+    alignItems: 'center',
+  },
+  statusBadgeText: {
+    fontSize: SIZES.small,
+    fontWeight: '600',
+  },
+  actionButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  actionIcon: {
+    fontSize: 20,
+    fontWeight: 'bold',
+  },
+  radiusSection: {
+    padding: SIZES.large,
+  },
+  radiusSectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: SIZES.large,
   },
   radiusOptions: {
     gap: SIZES.small,
   },
   radioOption: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: SIZES.small,
-    paddingHorizontal: SIZES.medium,
-    borderRadius: SIZES.radius,
-    backgroundColor: COLORS.background,
+    borderRadius: SIZES.radiusMedium,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: COLORS.lightGray,
   },
   selectedRadioOption: {
-    backgroundColor: COLORS.primary,
+    borderColor: COLORS.primary,
+    elevation: 4,
+    shadowColor: COLORS.primary,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+  },
+  radioOptionGradient: {
+    padding: SIZES.medium,
   },
   radioOptionContent: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  radioOptionLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
     flex: 1,
   },
-  radioButton: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    borderWidth: 2,
-    borderColor: COLORS.gray,
+  radioOptionEmoji: {
+    fontSize: 18,
     marginRight: SIZES.medium,
-    justifyContent: 'center',
-    alignItems: 'center',
   },
-  radioButtonSelected: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: 'white',
-  },
-  radioOptionText: {
+  radioOptionTextContainer: {
     flex: 1,
   },
   radioOptionLabel: {
-    fontSize: SIZES.caption,
-    fontWeight: '500',
+    fontSize: SIZES.body,
+    fontWeight: '600',
     color: COLORS.text,
+    marginBottom: SIZES.base,
   },
   selectedRadioLabel: {
     color: 'white',
@@ -514,50 +794,60 @@ const styles = StyleSheet.create({
   selectedRadioDescription: {
     color: 'rgba(255, 255, 255, 0.8)',
   },
+  radioIndicator: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: COLORS.lightGray,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  selectedRadioIndicator: {
+    backgroundColor: 'white',
+    borderColor: 'white',
+  },
   checkmark: {
-    color: 'white',
-    fontSize: 16,
+    color: COLORS.primary,
+    fontSize: 14,
     fontWeight: 'bold',
   },
-  enabledBadge: {
-    backgroundColor: COLORS.primary,
-    color: 'white',
-    paddingHorizontal: SIZES.small,
-    paddingVertical: SIZES.base / 2,
-    borderRadius: SIZES.radius,
-    fontSize: SIZES.small,
-    fontWeight: '500',
+  appInfoCard: {
+    marginTop: SIZES.xlarge,
+    borderRadius: SIZES.radiusXLarge,
+    overflow: 'hidden',
+    ...SHADOWS.large,
   },
-  chevron: {
-    fontSize: 20,
-    color: COLORS.textMuted,
+  appInfoGradient: {
+    padding: SIZES.xlarge,
   },
-  dangerButton: {
-    backgroundColor: 'white',
-    borderRadius: SIZES.radiusMedium,
-    padding: SIZES.medium,
-    marginTop: SIZES.small,
-    borderLeftWidth: 3,
-    borderLeftColor: '#FF5252',
-    ...SHADOWS.small,
-  },
-  dangerButtonText: {
-    fontSize: SIZES.body,
-    fontWeight: '500',
-    color: '#FF5252',
-    marginBottom: 2,
-  },
-  dangerButtonSubtext: {
-    fontSize: SIZES.small,
-    color: COLORS.textMuted,
-  },
-  appInfo: {
+  appInfoHeader: {
+    flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: SIZES.xlarge,
-    marginTop: SIZES.large,
+    marginBottom: SIZES.large,
+  },
+  appIconContainer: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: 'white',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: SIZES.large,
+    elevation: 4,
+    shadowColor: COLORS.primary,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+  },
+  appIcon: {
+    fontSize: 28,
+  },
+  appInfoTextContainer: {
+    flex: 1,
   },
   appInfoTitle: {
-    fontSize: SIZES.h4,
+    fontSize: SIZES.h3,
     fontWeight: 'bold',
     color: COLORS.text,
     marginBottom: SIZES.base,
@@ -565,13 +855,33 @@ const styles = StyleSheet.create({
   appInfoVersion: {
     fontSize: SIZES.caption,
     color: COLORS.textMuted,
-    marginBottom: SIZES.small,
+    fontWeight: '500',
   },
   appInfoDescription: {
-    fontSize: SIZES.small,
+    fontSize: SIZES.body,
     color: COLORS.textLight,
+    lineHeight: 22,
+    marginBottom: SIZES.large,
     textAlign: 'center',
-    lineHeight: 20,
+  },
+  appInfoFeatures: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    paddingTop: SIZES.medium,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.lightGray,
+  },
+  appInfoFeature: {
+    alignItems: 'center',
+  },
+  featureEmoji: {
+    fontSize: 20,
+    marginBottom: SIZES.small,
+  },
+  featureText: {
+    fontSize: SIZES.small,
+    color: COLORS.primary,
+    fontWeight: '600',
   },
 });
 
