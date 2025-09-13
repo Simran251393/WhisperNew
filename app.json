@@ -20,10 +20,23 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "edgeToEdgeEnabled": true
+      "edgeToEdgeEnabled": true,
+      "package": "com.simran1patra.myapp"
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "extra": {
+      "eas": {
+        "projectId": "5b9069b1-a7ae-4442-bbd8-c8097e677382"
+      }
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/5b9069b1-a7ae-4442-bbd8-c8097e677382"
+    },
+    "privacy": "public"
   }
 }
