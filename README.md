@@ -12,7 +12,7 @@ You can directly install the app on your Android device using the link below:
 
 Or scan the QR code with your Android device:
 
-*(Expo shows the QR code on the build page – you can screenshot and include it here if you like.)*
+
 
 ---
 
